@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{ title or 'Portal Billing - Cloud' }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="logo">
+        <i class="fa-solid fa-cloud"></i>
+        <span>Portal Billing - Cloud</span>
+      </div>
+      {% if user %}
+      <nav>
+        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+        {% if user.role == 'admin' %}
+        <a href="{{ url_for('settings') }}">Configurações</a>
+        <a href="{{ url_for('users_list') }}">Usuários</a>
+        {% endif %}
+        <a href="{{ url_for('logout') }}" class="logout-link">
+          <i class="fa-solid fa-right-from-bracket"></i> Sair
+        </a>
+      </nav>
+      {% endif %}
+    </header>
+
+    {% if user and sync_is_running %}
+    <div class="alert" style="border-color: rgba(59,130,246,0.7); margin: 0;">
+      <i class="fa-solid fa-circle-notch fa-spin"></i>
+      <span>
+        Sincronização de billing em andamento. Você pode continuar navegando normalmente;
+        algumas métricas podem levar alguns minutos para atualizar.
+      </span>
+    </div>
+    {% endif %}
+
+    <main class="app-main {% block main_extra_class %}{% endblock %}">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+      <span>Portal Billing - Cloud</span>
+    </footer>
+  </body>
+</html>

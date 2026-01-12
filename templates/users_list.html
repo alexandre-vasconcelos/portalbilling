@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1>Usuários</h1>
+      <p>Gerencie os usuários do portal e seus perfis.</p>
+    </div>
+    <div class="dashboard-actions">
+      <a href="{{ url_for('users_create') }}" class="btn btn-primary">
+        <i class="fa-solid fa-user-plus"></i>
+        Novo usuário
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Usuário</th>
+          <th>Perfil</th>
+          <th>Status</th>
+          <th>Criado em</th>
+          <th style="text-align: right;">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if not users %}
+        <tr>
+          <td colspan="5">Nenhum usuário cadastrado ainda.</td>
+        </tr>
+        {% endif %}
+
+        {% for u in users %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>
+            {% if u.role == 'admin' %}
+            <span class="tag tag-admin">Admin</span>
+            {% else %}
+            <span class="tag tag-user">Comum</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}
+            <span class="badge badge-success">Ativo</span>
+            {% else %}
+            <span class="badge badge-muted">Inativo</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.created_at %}
+            {{ u.created_at }}
+            {% else %}
+            -
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            <a
+              href="{{ url_for('users_edit', user_id=u.id) }}"
+              class="btn btn-secondary btn-small"
+            >
+              <i class="fa-solid fa-pen-to-square"></i>
+              Editar
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+

@@ -1,0 +1,189 @@
+{% extends "layout.html" %}
+
+{% block main_extra_class %}app-main-wide{% endblock %}
+
+{% block content %}
+<section class="dashboard monitor-dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1>Visão Geral · Modo monitor</h1>
+      <p>Resumo em tela cheia para exibição em outro monitor.</p>
+    </div>
+    <div class="dashboard-actions">
+      <span class="last-sync">
+        <i class="fa-solid fa-rotate"></i>
+        Última sincronização:
+        {% if summary.lastSyncAt %}
+        <strong>{{ summary.lastSyncAt | default('') | replace('T', ' ') }}</strong>
+        {% else %}
+        <strong>Sem dados ainda</strong>
+        {% endif %}
+      </span>
+    </div>
+  </div>
+
+  <div class="cards-grid">
+    <div class="card {% if summary.todayOverLimit %}card-critical{% endif %}">
+      <div class="card-header-row">
+        <h2>Gasto de hoje</h2>
+        {% if summary.todayOverLimit %}
+        <span class="badge badge-danger">Acima do limite</span>
+        {% elif summary.dailyLimit %}
+        <span class="badge badge-success">Dentro do limite</span>
+        {% endif %}
+      </div>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.todayCost or 0) }}
+      </p>
+      <p class="card-subtitle">
+        {% if summary.dailyLimit %}
+        Limite diário:
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.dailyLimit or 0) }}.
+        {% if summary.todayOverLimit %}
+        <br />
+        Hoje ultrapassou o limite diário configurado.
+        {% endif %}
+        {% else %}
+        Nenhum limite diário configurado.
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="card {% if summary.yesterdayOverLimit %}card-critical{% endif %}">
+      <div class="card-header-row">
+        <h2>Gasto de ontem</h2>
+        {% if summary.yesterdayOverLimit %}
+        <span class="badge badge-danger">Acima do limite</span>
+        {% elif summary.dailyLimit %}
+        <span class="badge badge-success">Dentro do limite</span>
+        {% endif %}
+      </div>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.yesterdayCost or 0) }}
+      </p>
+      <p class="card-subtitle">
+        {% if summary.dailyLimit %}
+        Limite diário:
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.dailyLimit or 0) }}.
+        {% if summary.yesterdayOverLimit %}
+        <br />
+        Ontem ultrapassou o limite diário configurado.
+        {% endif %}
+        {% else %}
+        Nenhum limite diário configurado.
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-header-row">
+        <h2>Gasto no período selecionado</h2>
+        <span class="badge badge-muted">
+          {{ summary.periodStart }} → {{ summary.periodEnd }}
+        </span>
+      </div>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.totalPeriod or 0) }}
+      </p>
+      <p class="card-subtitle card-subtitle--nowrap">
+        Período (UTC):
+        {{ summary.periodStart }} até {{ summary.periodEnd }}.
+      </p>
+      {% if summary.lastSyncAt or summary.dataUntilUtc %}
+      <p class="card-subtitle card-subtitle--nowrap">
+        Dados consolidados até (UTC):
+        {{ summary.dataUntilUtc or summary.periodEnd }}
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="card {% if summary.monthOverBudget %}card-critical{% endif %}">
+      <div class="card-header-row">
+        <h2>Orçamento do mês</h2>
+        {% if summary.monthlyBudget %}
+          {% if summary.monthOverBudget %}
+          <span class="badge badge-danger">Projeção acima do orçamento</span>
+          {% else %}
+          <span class="badge badge-success">Dentro do orçamento</span>
+          {% endif %}
+        {% endif %}
+      </div>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.monthCost or 0) }}
+      </p>
+      <p class="card-subtitle">
+        {% if summary.monthlyBudget %}
+        Orçamento: {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.monthlyBudget or 0) }}
+        ({{ "%.1f" | format(summary.monthPercent or 0) }}% usado).
+        {% else %}
+        Nenhum orçamento mensal configurado.
+        {% endif %}
+      </p>
+      {% if summary.monthForecast is not none and summary.monthlyBudget %}
+      <p class="card-subtitle">
+        Projeção mês: {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.monthForecast or 0) }}.
+      </p>
+      {% endif %}
+    </div>
+
+    {% if summary.customForecast is not none and summary.customForecastUntil %}
+    <div class="card">
+      <h2>Projeção personalizada</h2>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.customForecast or 0) }}
+      </p>
+      <p class="card-subtitle card-subtitle--nowrap">
+        Até (UTC): {{ summary.customForecastUntil }}.
+      </p>
+      <p class="card-subtitle">
+        Baseada na média diária do mês atual e na data de projeção definida nas configurações.
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h2>Top serviços (período)</h2>
+      <ul class="list">
+        {% if not summary.topServices %}
+        <li>Nenhum dado disponível ainda.</li>
+        {% endif %}
+        {% for s in summary.topServices %}
+        <li>
+          <span>{{ s.ServiceName or "N/A" }}</span>
+          <span class="badge">
+            {{ summary.currencySymbol }}
+            {{ "%.2f" | format(s.TotalCost or 0) }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Recursos por serviço</h2>
+      <ul class="list">
+        {% if not summary.resourcesByService %}
+        <li>Nenhum recurso com custo no período.</li>
+        {% endif %}
+        {% for r in summary.resourcesByService %}
+        <li>
+          <span>{{ r.ServiceName or "N/A" }}</span>
+          <span class="badge">
+            {{ r.ResourceCount or 0 }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}

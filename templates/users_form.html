@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      {% if mode == 'create' %}
+      <h1>Novo usuário</h1>
+      <p>Crie um usuário com perfil de acesso ao portal.</p>
+      {% else %}
+      <h1>Editar usuário</h1>
+      <p>Atualize o perfil e a senha, se necessário.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    {% if error %}
+    <div class="alert alert-error">
+      <i class="fa-solid fa-circle-exclamation"></i>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <form
+      method="POST"
+      action=""
+      class="auth-form"
+      autocomplete="off"
+      novalidate
+    >
+      <div class="form-group">
+        <label for="username">Usuário</label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          value="{{ form_data.username }}"
+          {% if mode == 'edit' %}readonly{% endif %}
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="role">Perfil</label>
+        <select id="role" name="role">
+          <option value="user" {% if form_data.role == 'user' %}selected{% endif %}>
+            Comum (somente visualizar)
+          </option>
+          <option
+            value="admin"
+            {% if form_data.role == 'admin' %}selected{% endif %}
+          >
+            Admin (gerencia usuários)
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-inline">
+          <input
+            type="checkbox"
+            name="is_active"
+            {% if form_data.is_active %}checked{% endif %}
+          />
+          Usuário ativo
+        </label>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="form-group">
+        {% if mode == 'create' %}
+        <label for="password">Senha</label>
+        {% else %}
+        <label for="password">Nova senha (opcional)</label>
+        {% endif %}
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="new-password"
+        />
+      </div>
+
+      <div class="form-group">
+        {% if mode == 'create' %}
+        <label for="password_confirm">Confirmar senha</label>
+        {% else %}
+        <label for="password_confirm">Confirmar nova senha</label>
+        {% endif %}
+        <input
+          id="password_confirm"
+          name="password_confirm"
+          type="password"
+          autocomplete="new-password"
+        />
+      </div>
+
+      <div class="form-actions">
+        <a href="{{ url_for('users_list') }}" class="btn btn-secondary">
+          Voltar
+        </a>
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          Salvar
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}
+

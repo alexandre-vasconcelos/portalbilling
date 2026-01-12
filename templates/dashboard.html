@@ -1,0 +1,639 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1>Visão geral</h1>
+      <p>Resumo financeiro recente da sua tenancy OCI.</p>
+    </div>
+    <div class="dashboard-actions">
+      <div class="status-pill-group">
+        <span class="status-pill">
+          <i class="fa-solid fa-database"></i>
+          Dados até:
+          {% if summary.dataUntilUtc %}
+          <strong>{{ summary.dataUntilUtc }}</strong>
+          {% else %}
+          <strong>Sem dados ainda</strong>
+          {% endif %}
+        </span>
+        <span class="status-pill status-pill-muted">
+          <i class="fa-solid fa-rotate"></i>
+          Última sync:
+          {% if summary.lastSyncAt %}
+          <strong>{{ summary.lastSyncAt | default('') | replace('T', ' ') }}</strong>
+          {% else %}
+          <strong>Sem sincronizações</strong>
+          {% endif %}
+        </span>
+      </div>
+      <a
+        href="{{ url_for('dashboard_monitor', start_date=summary.periodStart, end_date=summary.periodEnd) }}"
+        target="_blank"
+        class="btn btn-secondary btn-small"
+      >
+        <i class="fa-solid fa-up-right-from-square"></i>
+        Modo monitor
+      </a>
+    </div>
+  </div>
+
+  <div
+    class="dashboard-actions"
+    style="margin-top: 0.75rem; justify-content: space-between; gap: 1rem; flex-wrap: wrap;"
+  >
+    <div>
+      <form
+        method="GET"
+        action="{{ url_for('dashboard') }}"
+        class="auth-form dashboard-filters"
+        id="dashboardFilterForm"
+      >
+        <div class="form-group form-group-inline">
+          <label for="start_date">De</label>
+          <input
+            id="start_date"
+            name="start_date"
+            type="date"
+            value="{{ summary.periodStart }}"
+          />
+        </div>
+        <div class="form-group form-group-inline">
+          <label for="end_date">Até</label>
+          <input
+            id="end_date"
+            name="end_date"
+            type="date"
+            value="{{ summary.periodEnd }}"
+          />
+        </div>
+        <button type="submit" class="btn btn-secondary btn-small">
+          Aplicar
+        </button>
+      </form>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+      <button
+        type="button"
+        class="btn btn-secondary btn-small"
+        onclick="applyQuickRange(7)"
+      >
+        Últimos 7 dias
+      </button>
+      <button
+        type="button"
+        class="btn btn-secondary btn-small"
+        onclick="applyQuickRange(30)"
+      >
+        Últimos 30 dias
+      </button>
+      <button
+        type="button"
+        class="btn btn-secondary btn-small"
+        onclick="applyQuickRange(365)"
+      >
+        Último 1 ano
+      </button>
+      <button
+        type="button"
+        class="btn btn-secondary btn-small"
+        onclick="applyQuickRange(730)"
+      >
+        Últimos 2 anos
+      </button>
+      <button
+        type="button"
+        class="btn btn-secondary btn-small"
+        onclick="applyCurrentMonth()"
+      >
+        Mês atual
+      </button>
+      <a
+        href="{{ url_for('export_billing_csv', start_date=summary.periodStart, end_date=summary.periodEnd) }}"
+        class="btn btn-secondary btn-small"
+        style="white-space: nowrap;"
+      >
+        <i class="fa-solid fa-file-export"></i>
+        Exportar CSV
+      </a>
+    </div>
+  </div>
+
+  <div class="cards-grid">
+    <div class="card {% if summary.todayOverLimit %}card-critical{% endif %}">
+      <div class="card-header-row">
+        <h2>Gasto de hoje</h2>
+        {% if summary.todayOverLimit %}
+        <span class="badge badge-danger">Acima do limite</span>
+        {% elif summary.dailyLimit %}
+        <span class="badge badge-success">Dentro do limite</span>
+        {% endif %}
+      </div>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.todayCost or 0) }}
+      </p>
+      {% if summary.todayVsYesterdayPercent is not none %}
+      <p class="card-subtitle card-subtitle--delta">
+        {% set delta = summary.todayVsYesterdayPercent %}
+        {% if delta > 0 %}
+        <i class="fa-solid fa-arrow-up trend-up"></i>
+        {{ "%.1f" | format(delta) }}% vs. ontem
+        {% elif delta < 0 %}
+        <i class="fa-solid fa-arrow-down trend-down"></i>
+        {{ "%.1f" | format(delta | abs) }}% vs. ontem
+        {% else %}
+        <i class="fa-solid fa-minus trend-neutral"></i>
+        Igual a ontem
+        {% endif %}
+      </p>
+      {% endif %}
+      <p class="card-subtitle">
+        {% if summary.dailyLimit %}
+        Limite diário:
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.dailyLimit or 0) }}.
+        {% if summary.todayOverLimit %}
+        <br />
+        Hoje ultrapassou o limite diário configurado.
+        {% endif %}
+        {% else %}
+        Nenhum limite diário configurado.
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="card {% if summary.yesterdayOverLimit %}card-critical{% endif %}">
+      <div class="card-header-row">
+        <h2>Gasto de ontem</h2>
+        {% if summary.yesterdayOverLimit %}
+        <span class="badge badge-danger">Acima do limite</span>
+        {% elif summary.dailyLimit %}
+        <span class="badge badge-success">Dentro do limite</span>
+        {% endif %}
+      </div>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.yesterdayCost or 0) }}
+      </p>
+      <p class="card-subtitle">
+        {% if summary.dailyLimit %}
+        Limite diário:
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.dailyLimit or 0) }}.
+        {% if summary.yesterdayOverLimit %}
+        <br />
+        Ontem ultrapassou o limite diário configurado.
+        {% endif %}
+        {% else %}
+        Nenhum limite diário configurado.
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-header-row">
+        <h2>Gasto no período selecionado</h2>
+        <span class="badge badge-muted">
+          {{ summary.periodStart }} → {{ summary.periodEnd }}
+        </span>
+      </div>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.totalPeriod or 0) }}
+      </p>
+      {% if summary.periodVsPreviousPercent is not none %}
+      <p class="card-subtitle card-subtitle--delta">
+        {% set delta = summary.periodVsPreviousPercent %}
+        {% if delta > 0 %}
+        <i class="fa-solid fa-arrow-up trend-up"></i>
+        {{ "%.1f" | format(delta) }}% vs. período anterior
+        {% elif delta < 0 %}
+        <i class="fa-solid fa-arrow-down trend-down"></i>
+        {{ "%.1f" | format(delta | abs) }}% vs. período anterior
+        {% else %}
+        <i class="fa-solid fa-minus trend-neutral"></i>
+        Igual ao período anterior
+        {% endif %}
+      </p>
+      {% endif %}
+      {% if summary.lastSyncAt or summary.dataUntilUtc %}
+      <p class="card-subtitle card-subtitle--nowrap">
+        Dados consolidados até (UTC): {{ summary.dataUntilUtc or summary.periodEnd }}.
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="card {% if summary.monthOverBudget %}card-critical{% endif %}">
+      <h2>Orçamento do mês</h2>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.monthCost or 0) }}
+      </p>
+      <p class="card-subtitle">
+        {% if summary.monthlyBudget %}
+        Orçamento: {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.monthlyBudget or 0) }}
+        ({{ "%.1f" | format(summary.monthPercent or 0) }}% usado).
+        {% else %}
+        Nenhum orçamento mensal configurado.
+        {% endif %}
+      </p>
+      {% if summary.monthForecast is not none and summary.monthlyBudget %}
+      <p class="card-subtitle">
+        Projeção mês: {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.monthForecast or 0) }}.
+      </p>
+      {% endif %}
+      {% if summary.monthVsPreviousPercent is not none %}
+      <p class="card-subtitle card-subtitle--delta">
+        {% set delta = summary.monthVsPreviousPercent %}
+        {% if delta > 0 %}
+        <i class="fa-solid fa-arrow-up trend-up"></i>
+        {{ "%.1f" | format(delta) }}% vs. mês anterior
+        {% elif delta < 0 %}
+        <i class="fa-solid fa-arrow-down trend-down"></i>
+        {{ "%.1f" | format(delta | abs) }}% vs. mês anterior
+        {% else %}
+        <i class="fa-solid fa-minus trend-neutral"></i>
+        Igual ao mês anterior
+        {% endif %}
+      </p>
+      {% endif %}
+    </div>
+
+    {% if summary.customForecast is not none and summary.customForecastUntil %}
+    <div class="card">
+      <h2>Projeção personalizada</h2>
+      <p class="card-value">
+        {{ summary.currencySymbol }}
+        {{ "%.2f" | format(summary.customForecast or 0) }}
+      </p>
+      <p class="card-subtitle card-subtitle--nowrap">
+        Até (UTC): {{ summary.customForecastUntil }}.
+      </p>
+      <p class="card-subtitle">
+        Baseada na média diária do mês atual e na data de projeção definida nas configurações.
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h2>Top serviços (período)</h2>
+      <ul class="list">
+        {% if not summary.topServices %}
+        <li>Nenhum dado disponível ainda.</li>
+        {% endif %}
+        {% for s in summary.topServices %}
+        <li>
+          <span>{{ s.ServiceName or "N/A" }}</span>
+          <span class="badge">
+            {{ summary.currencySymbol }}
+            {{ "%.2f" | format(s.TotalCost or 0) }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Recursos por serviço</h2>
+      <ul class="list">
+        {% if not summary.resourcesByService %}
+        <li>Nenhum recurso com custo no período.</li>
+        {% endif %}
+        {% for r in summary.resourcesByService %}
+        <li>
+          <span>{{ r.ServiceName or "N/A" }}</span>
+          <span class="badge">
+            {{ r.ResourceCount or 0 }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="charts-grid">
+    {% if summary.dailyLimit and summary.daysOverLimit %}
+    <div class="card full-width" style="border-color: rgba(248,113,113,0.8);">
+      <h2>Alerta de limite diário</h2>
+      <p class="card-subtitle">
+        Limite diário configurado:
+        <strong>{{ summary.currencySymbol }} {{ "%.2f" | format(summary.dailyLimit or 0) }}</strong>.
+        Dias acima do limite no período:
+        <strong>{{ summary.daysOverLimit | length }}</strong>.
+      </p>
+      <ul class="list">
+        {% for d in summary.daysOverLimit %}
+        <li>
+          <span>{{ d.UsageDay }}</span>
+          <span class="badge" style="border-color: rgba(248,113,113,0.8); color: #fecaca;">
+            {{ summary.currencySymbol }}
+            {{ "%.2f" | format(d.TotalCost or 0) }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="card full-width">
+      <div class="card-header-row">
+        <h2>Custo diário (período selecionado)</h2>
+        <button
+          type="button"
+          class="icon-button"
+          onclick="toggleFullscreen('card-costByDay')"
+          title="Ver em tela cheia"
+        >
+          <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+        </button>
+      </div>
+      <div id="card-costByDay">
+      <canvas id="costByDayChart" height="120"></canvas>
+      </div>
+    </div>
+    <div class="card full-width">
+      <div class="card-header-row">
+        <h2>Custo mensal (período selecionado)</h2>
+        <button
+          type="button"
+          class="icon-button"
+          onclick="toggleFullscreen('card-costByMonth')"
+          title="Ver em tela cheia"
+        >
+          <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+        </button>
+      </div>
+      <div id="card-costByMonth">
+      <canvas id="costByMonthChart" height="120"></canvas>
+      </div>
+    </div>
+    <div class="card full-width">
+      <div class="card-header-row">
+        <h2>Comparação anual (mês a mês)</h2>
+        <button
+          type="button"
+          class="icon-button"
+          onclick="toggleFullscreen('card-annualComparison')"
+          title="Ver em tela cheia"
+        >
+          <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+        </button>
+      </div>
+      <div id="card-annualComparison">
+      <canvas id="annualComparisonChart" height="120"></canvas>
+      <p class="card-subtitle">
+        Compara o custo mensal do ano atual (base) com o ano anterior, considerando todos os dados disponíveis.
+      </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  function toggleFullscreen(cardId) {
+    const el = document.getElementById(cardId);
+    if (!el) return;
+
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(function () {});
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(function () {});
+      }
+    }
+  }
+
+  function setDateInput(id, dateObj) {
+    const el = document.getElementById(id);
+    if (!el || !(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) {
+      return;
+    }
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    el.value = `${year}-${month}-${day}`;
+  }
+
+  function submitDashboardFilterForm() {
+    const form = document.getElementById('dashboardFilterForm');
+    if (form) {
+      form.submit();
+    }
+  }
+
+  function applyQuickRange(days) {
+    const end = new Date();
+    const start = new Date();
+    // Ex.: últimos 7 dias => hoje e mais 6 dias para trás
+    start.setDate(end.getDate() - (days - 1));
+
+    setDateInput('start_date', start);
+    setDateInput('end_date', end);
+    submitDashboardFilterForm();
+  }
+
+  function applyCurrentMonth() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date();
+
+    setDateInput('start_date', start);
+    setDateInput('end_date', end);
+    submitDashboardFilterForm();
+  }
+
+  (function () {
+    const summary = {{ summary | tojson }};
+    const byDay = summary.byDay || [];
+    const monthly = summary.monthly || [];
+    const annual = summary.annualComparison || null;
+
+    const labels = byDay.map((d) =>
+      new Date(d.UsageDay).toLocaleDateString('pt-BR')
+    );
+    const data = byDay.map((d) => Number(d.TotalCost || 0));
+
+    const ctx = document.getElementById('costByDayChart').getContext('2d');
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Custo diário ({{ summary.currencySymbol }})',
+            data,
+            fill: false,
+            borderColor: '#2563eb',
+            backgroundColor: '#2563eb',
+            tension: 0.25,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true
+          },
+          tooltip: {
+            callbacks: {
+              title: function (ctx) {
+                const label = ctx[0] && ctx[0].label ? ctx[0].label : '';
+                return 'Dia: ' + label;
+              },
+              label: function (ctx) {
+                return (
+                  '{{ summary.currencySymbol }} ' +
+                  Number(ctx.parsed.y || 0).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })
+                );
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          },
+          x: {
+            ticks: {
+              maxRotation: 45,
+              minRotation: 45,
+              autoSkip: true,
+              maxTicksLimit: 10
+            }
+          }
+        }
+      }
+    });
+
+    const ctxMonth = document.getElementById('costByMonthChart').getContext('2d');
+    const monthLabels = monthly.map((m) => {
+      const y = m.Year;
+      const month = String(m.Month).padStart(2, '0');
+      return month + '/' + y;
+    });
+    const monthData = monthly.map((m) => Number(m.TotalCost || 0));
+
+    new Chart(ctxMonth, {
+      type: 'bar',
+      data: {
+        labels: monthLabels,
+        datasets: [
+          {
+            label: 'Custo mensal ({{ summary.currencySymbol }})',
+            data: monthData,
+            backgroundColor: '#4f46e5'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true
+          },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return (
+                  '{{ summary.currencySymbol }} ' +
+                  Number(ctx.parsed.y || 0).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })
+                );
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    // Gráfico de comparação anual (ano base x ano anterior)
+    if (annual && annual.months) {
+      const annualCtx = document.getElementById('annualComparisonChart').getContext('2d');
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const labelsAnnual = annual.months.map((m) => monthNames[(m.Month || m.month || 1) - 1]);
+      const baseData = annual.months.map((m) => Number(m.BaseYearCost || m.baseYearCost || 0));
+      const prevData = annual.months.map((m) => Number(m.PrevYearCost || m.prevYearCost || 0));
+
+      new Chart(annualCtx, {
+        type: 'line',
+        data: {
+          labels: labelsAnnual,
+          datasets: [
+            {
+              label: `Ano base ${annual.baseYear}`,
+              data: baseData,
+              borderColor: '#4f46e5',
+              backgroundColor: '#4f46e5',
+              tension: 0.25,
+              fill: false,
+              pointRadius: 3,
+              pointHoverRadius: 5
+            },
+            {
+              label: `Ano anterior ${annual.prevYear}`,
+              data: prevData,
+              borderColor: '#9ca3af',
+              backgroundColor: '#9ca3af',
+              tension: 0.25,
+              fill: false,
+              borderDash: [4, 4],
+              pointRadius: 3,
+              pointHoverRadius: 5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true
+            },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  return (
+                    ctx.dataset.label +
+                    ': ' +
+                    '{{ summary.currencySymbol }} ' +
+                    Number(ctx.parsed.y || 0).toLocaleString('pt-BR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })
+                  );
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

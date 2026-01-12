@@ -1,0 +1,318 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="dashboard">
+  <div class="dashboard-header">
+    <div>
+      <h1>Configurações</h1>
+      <p>Sincronização de billing e gestão do portal.</p>
+    </div>
+  </div>
+
+  {% if message %}
+  <div class="alert alert-error" style="border-color: rgba(56, 189, 248, 0.7);">
+    <i class="fa-solid fa-circle-info"></i>
+    <span>{{ message }}</span>
+  </div>
+  {% endif %}
+
+  {% if sync_message %}
+  <div
+    class="alert"
+    style="border-color: {{ 'rgba(34,197,94,0.7)' if sync_status == 'ok' else 'rgba(248,113,113,0.8)' }};"
+  >
+    <i
+      class="fa-solid {{ 'fa-circle-check' if sync_status == 'ok' else 'fa-circle-exclamation' }}"
+    ></i>
+    <span>{{ sync_message }}</span>
+  </div>
+  {% endif %}
+
+  <div class="cards-grid">
+    <div class="card">
+      <h2>Sincronização automática</h2>
+      <p class="card-subtitle">
+        Configure a tarefa agendada que consulta os custos na OCI e grava no SQL
+        Server.
+      </p>
+
+      <form
+        method="POST"
+        action="{{ url_for('settings') }}"
+        class="auth-form"
+        style="margin-top: 0.75rem;"
+      >
+        <input type="hidden" name="form" value="sync_auto" />
+
+        <div class="form-group">
+          <label class="checkbox-inline">
+            <input
+              type="checkbox"
+              name="auto_enabled"
+              {% if sync.auto_enabled %}checked{% endif %}
+            />
+            Habilitar sincronização automática
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="cron_expr">Expressão CRON</label>
+          <input
+            id="cron_expr"
+            name="cron_expr"
+            type="text"
+            value="{{ sync.cron_expression }}"
+            placeholder="0 * * * *"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="timezone">Timezone</label>
+          <input
+            id="timezone"
+            name="timezone"
+            type="text"
+            value="{{ sync.timezone }}"
+            placeholder="UTC"
+          />
+        </div>
+
+        <p class="card-subtitle">
+          Exemplos de CRON: <code>0 * * * *</code> (de hora em hora),
+          <code>* * * * *</code> (a cada minuto).
+        </p>
+
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          Salvar configurações
+        </button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Limites e orçamento</h2>
+      <p class="card-subtitle">
+        Defina limites de gasto para que o dashboard consiga destacar dias
+        críticos e o consumo do orçamento mensal.
+      </p>
+
+      <form
+        method="POST"
+        action="{{ url_for('settings') }}"
+        class="auth-form"
+        style="margin-top: 0.75rem;"
+      >
+        <input type="hidden" name="form" value="limits" />
+
+        <div class="form-group">
+          <label for="daily_limit">Limite diário de gasto</label>
+          <input
+            id="daily_limit"
+            name="daily_limit"
+            type="number"
+            step="0.01"
+            min="0"
+            value="{{ sync.daily_limit or '' }}"
+            placeholder="Ex.: 500.00"
+          />
+          <p class="card-subtitle">
+            Se o gasto de um dia ultrapassar esse limite, o dashboard exibirá um
+            alerta crítico para aquele dia.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="monthly_budget">Orçamento mensal</label>
+          <input
+            id="monthly_budget"
+            name="monthly_budget"
+            type="number"
+            step="0.01"
+            min="0"
+            value="{{ sync.monthly_budget or '' }}"
+            placeholder="Ex.: 1000.00"
+          />
+          <p class="card-subtitle">
+            Usado para calcular percentual do orçamento consumido e projeção de
+            gasto até o fim do mês.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="forecast_until_date">Data de projeção (UTC)</label>
+          <input
+            id="forecast_until_date"
+            name="forecast_until_date"
+            type="date"
+            value="{{ (sync.forecast_until_date|string)[:10] if sync.forecast_until_date else '' }}"
+          />
+          <p class="card-subtitle">
+            Se preenchida, o dashboard mostrará uma projeção simples de gasto
+            até esta data, baseada na média diária do mês atual.
+          </p>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          Salvar limites
+        </button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Sincronização manual</h2>
+      <p class="card-subtitle">
+        Execute uma sincronização sob demanda (último 1 ano).
+        Durante a execução manual, o job automático não será executado.
+      </p>
+
+      {% if sync.is_sync_running %}
+      <p class="card-subtitle" style="margin-top: 0.5rem; color: #eab308;">
+        <i class="fa-solid fa-circle-notch fa-spin"></i>
+        Sincronização manual em andamento, por favor aguarde...
+      </p>
+      {% endif %}
+
+      <form
+        method="POST"
+        action="{{ url_for('manual_sync') }}"
+        class="auth-form"
+        style="margin-top: 0.75rem;"
+      >
+        {% set sync_btn_class = 'btn btn-primary' %}
+        {% if sync_status == 'ok' %}
+          {% set sync_btn_class = 'btn btn-success' %}
+        {% elif sync_status == 'error' %}
+          {% set sync_btn_class = 'btn btn-danger' %}
+        {% endif %}
+
+        <div class="form-group">
+          <label for="period">Período</label>
+          <select id="period" name="period">
+            <option value="1y">Último 1 ano</option>
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          class="{{ sync_btn_class }}"
+          {% if sync.is_sync_running %}disabled{% endif %}
+        >
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+          Sincronizar agora
+        </button>
+      </form>
+
+      {% if sync_message %}
+      <p class="card-subtitle" style="margin-top: 0.5rem;">
+        Status da última sincronização manual:
+        <span class="{% if sync_status == 'ok' %}text-success{% else %}text-danger{% endif %}">
+          {{ sync_message }}
+        </span>
+      </p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <div class="cards-grid" style="margin-top: 1.5rem;">
+    <div class="card full-width">
+      <h2>Histórico de sincronizações</h2>
+      <p class="card-subtitle">
+        Últimas execuções de sincronização automática e manual registradas no banco (UTC).
+      </p>
+
+      {% if not sync_runs %}
+      <p class="card-subtitle">Nenhum histórico disponível ainda.</p>
+      {% else %}
+      <div style="overflow-x: auto;">
+        <table class="table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+          <thead>
+            <tr>
+              <th style="text-align: left; padding: 0.25rem 0.5rem;">Início (UTC)</th>
+              <th style="text-align: left; padding: 0.25rem 0.5rem;">Fim (UTC)</th>
+              <th style="text-align: left; padding: 0.25rem 0.5rem;">Tipo</th>
+              <th style="text-align: left; padding: 0.25rem 0.5rem;">Janela (UTC)</th>
+              <th style="text-align: left; padding: 0.25rem 0.5rem;">Status</th>
+              <th style="text-align: right; padding: 0.25rem 0.5rem;">Registros</th>
+              <th style="text-align: left; padding: 0.25rem 0.5rem;">Erro</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in sync_runs %}
+            <tr>
+              <td style="padding: 0.25rem 0.5rem;">
+                {{ (r.started_at|string).replace('T', ' ') if r.started_at else '-' }}
+              </td>
+              <td style="padding: 0.25rem 0.5rem;">
+                {{ (r.completed_at|string).replace('T', ' ') if r.completed_at else '-' }}
+              </td>
+              <td style="padding: 0.25rem 0.5rem;">
+                {{ 'Manual' if r.is_manual else 'Automática' }}
+              </td>
+              <td style="padding: 0.25rem 0.5rem;">
+                {% if r.window_start or r.window_end %}
+                  {{ r.window_start.date() if r.window_start else '?' }}
+                  →
+                  {{ r.window_end.date() if r.window_end else '?' }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td style="padding: 0.25rem 0.5rem;">
+                {{ r.status or '-' }}
+              </td>
+              <td style="padding: 0.25rem 0.5rem; text-align: right;">
+                {{ r.records_returned or 0 }} / {{ r.records_inserted or 0 }}
+              </td>
+              <td style="padding: 0.25rem 0.5rem; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                {{ r.error_message or '' }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    <div class="card full-width">
+      <h2>Limpar dados de billing</h2>
+      <p class="card-subtitle">
+        Remove todos os registros de billing e o histórico de sincronização.
+        Esta ação não pode ser desfeita.
+      </p>
+
+      <form
+        method="POST"
+        action="{{ url_for('settings') }}"
+        class="auth-form"
+        style="margin-top: 0.75rem;"
+      >
+        <input type="hidden" name="form" value="reset_data" />
+
+        <div class="form-group">
+          <label for="confirm_text">
+            Para confirmar, digite <code>RESET</code> no campo abaixo:
+          </label>
+          <input
+            id="confirm_text"
+            name="confirm_text"
+            type="text"
+            autocomplete="off"
+            placeholder="RESET"
+          />
+        </div>
+
+        <p class="card-subtitle" style="color: #fecaca;">
+          Atenção: isso apagará todos os dados de billing já carregados no portal
+          e o histórico de SyncRuns. Os dados continuarão disponíveis na console da OCI.
+        </p>
+
+        <button type="submit" class="btn btn-danger">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          Limpar dados de billing
+        </button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

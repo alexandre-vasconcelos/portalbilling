@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    container_name: portalbilling-web
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-3000}:3000"
+    restart: unless-stopped
